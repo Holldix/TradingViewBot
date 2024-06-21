@@ -1,0 +1,109 @@
+import requests as rq
+import redis, time, os
+from tradingview_ta import TA_Handler, Interval
+from worker.tasks import send_signal
+from dotenv import load_dotenv
+load_dotenv()
+
+INTERVAL_IN_MINUTE = 5
+PERCENT = 1
+NUMBER_OF_COINS = 50
+TIME_UPDATED_LIST_COINS = 3600 # 1 hour
+
+r_coins = redis.Redis(
+    host="redis",
+    port=6379,
+    db=0,
+    decode_responses=True,
+)
+r_open = redis.Redis(
+    host="redis",
+    port=6379,
+    db=1,
+    decode_responses=True,
+)
+r_coins.flushdb()
+r_open.flushdb()
+
+def get_list_coins():
+    headers = {
+        'X-CMC_PRO_API_KEY': os.getenv("API_KEY"),
+        }
+    body = {
+        "limit": NUMBER_OF_COINS,
+        }
+    res = rq.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest",
+                  headers = headers,
+                  params = body)
+    
+    data = res.json()
+    coins_symbol = []
+
+    for coin in data['data']:
+        coins_symbol.append(coin['symbol'])
+
+    return coins_symbol
+
+
+def scanner(minute):
+    print(f"Идёт {minute} минута...") # log
+    coins_symbol = r_coins.smembers("coins")
+
+    if len(coins_symbol) == 0:
+        coins_symbol = get_list_coins()
+        r_coins.sadd("coins", *coins_symbol, TIME_UPDATED_LIST_COINS) # updated every hour
+        print("Обновлён список криптовалют") # log
+
+    max_percent = 0
+    best_coin = ""
+
+    for coin in coins_symbol:
+        handler = TA_Handler(
+            screener="crypto",
+            exchange="BINANCE",
+            symbol=f"{coin}USDT",
+            interval=Interval.INTERVAL_1_MINUTE,
+        )
+
+        try:
+            analis = handler.get_analysis()
+        except Exception as e:
+            # print(f"Error: {coin}")
+            continue
+
+        indicators = analis.indicators
+        open = indicators["open"]
+        close_coin = indicators["close"]
+
+        open_from_list = r_open.lindex(coin, 0)
+        if open_from_list is None:
+            open_coin = open
+        else:
+            open_coin = float(open_from_list)
+
+        pump = (close_coin - open_coin) / open_coin * 100
+        dump = (open_coin - close_coin) / open_coin * 100
+
+        if pump >= PERCENT:
+            print(f"{coin} PUMP!!!") # log
+            send_signal.delay(coin, f"🟢PUMP - {round(pump, 2)}%")
+        elif dump >= PERCENT:
+            print(f"{coin} DUMP!!!") # log
+            send_signal.delay(coin, f"🔴DUMP - {round(dump, 2)}%")
+
+        if max(pump, dump) > max_percent:
+            max_percent = max(pump, dump)
+            best_coin = coin
+
+        r_open.rpush(coin, open)
+        if r_open.llen(coin) > INTERVAL_IN_MINUTE:
+            r_open.lpop(coin)
+
+    print(f"{max_percent} is {best_coin}") # log
+
+minute = 0
+while True:
+    start_time = time.time()
+    minute += 1
+    scanner(minute)
+    time.sleep(60 - time.time() + start_time) # work every minute
