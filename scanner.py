@@ -51,7 +51,8 @@ def scanner(minute):
 
     if len(coins_symbol) == 0:
         coins_symbol = get_list_coins()
-        r_coins.sadd("coins", *coins_symbol, TIME_UPDATED_LIST_COINS * 60) # updated every hour
+        r_coins.sadd("coins", *coins_symbol) # updated every hour
+        r_coins.expire("coins", TIME_UPDATED_LIST_COINS * 60)
         print("Обновлён список криптовалют") # log
 
     max_percent = 0
@@ -75,11 +76,11 @@ def scanner(minute):
         open = indicators["open"]
         close_coin = indicators["close"]
 
-        open_from_list = r_open.lindex(coin, 0)
-        if open_from_list is None:
-            open_coin = open
-        else:
-            open_coin = float(open_from_list)
+        r_open.rpush(coin, open)
+        if r_open.llen(coin) > INTERVAL_IN_MINUTE:
+            r_open.lpop(coin)
+
+        open_coin = float(r_open.lindex(coin, 0))
 
         pump = (close_coin - open_coin) / open_coin * 100
         dump = (open_coin - close_coin) / open_coin * 100
@@ -87,17 +88,15 @@ def scanner(minute):
         if pump >= PERCENT:
             print(f"{coin} PUMP!!!") # log
             send_signal.delay(coin, f"🟢PUMP - {round(pump, 2)}%")
+            r_open.delete(coin)
         elif dump >= PERCENT:
             print(f"{coin} DUMP!!!") # log
             send_signal.delay(coin, f"🔴DUMP - {round(dump, 2)}%")
-
+            r_open.delete(coin)
+            
         if max(pump, dump) > max_percent:
             max_percent = max(pump, dump)
             best_coin = coin
-
-        r_open.rpush(coin, open)
-        if r_open.llen(coin) > INTERVAL_IN_MINUTE:
-            r_open.lpop(coin)
 
     print(f"{max_percent} is {best_coin}") # log
 
