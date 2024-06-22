@@ -8,7 +8,7 @@ load_dotenv()
 INTERVAL_IN_MINUTE = 5
 PERCENT = 1
 NUMBER_OF_COINS = 50
-TIME_UPDATED_LIST_COINS = 3600 # 1 hour
+TIME_UPDATED_LIST_COINS = 60 # 1 hour
 
 r_coins = redis.Redis(
     host="redis",
@@ -51,7 +51,7 @@ def scanner(minute):
 
     if len(coins_symbol) == 0:
         coins_symbol = get_list_coins()
-        r_coins.sadd("coins", *coins_symbol, TIME_UPDATED_LIST_COINS) # updated every hour
+        r_coins.sadd("coins", *coins_symbol, TIME_UPDATED_LIST_COINS * 60) # updated every hour
         print("Обновлён список криптовалют") # log
 
     max_percent = 0
