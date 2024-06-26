@@ -1,7 +1,7 @@
 import requests as rq
 import redis, time, os
 from tradingview_ta import TA_Handler, Interval
-from worker.tasks import send_signal
+from worker.tasks import send_signal, create_table
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -99,6 +99,9 @@ def scanner(minute):
             best_coin = coin
 
     print(f"{max_percent} is {best_coin}") # log
+
+
+create_table.delay()
 
 minute = 0
 while True:
