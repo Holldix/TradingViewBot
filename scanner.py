@@ -5,9 +5,9 @@ from worker.tasks import send_signal, create_table
 from dotenv import load_dotenv
 load_dotenv()
 
-INTERVAL_IN_MINUTE = 5
-PERCENT = 1
-NUMBER_OF_COINS = 50
+INTERVAL_IN_MINUTE = 1
+PERCENT = 3
+NUMBER_OF_COINS = 500
 TIME_UPDATED_LIST_COINS = 60 # 1 hour
 
 r_coins = redis.Redis(
