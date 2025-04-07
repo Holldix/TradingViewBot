@@ -85,14 +85,28 @@ def scanner(minute):
         pump = (close_coin - open_coin) / open_coin * 100
         dump = (open_coin - close_coin) / open_coin * 100
 
-        if pump >= PERCENT:
-            print(f"{coin} PUMP!!!") # log
-            send_signal.delay(coin, f"🟢PUMP - {round(pump, 2)}%")
-            r_open.delete(coin)
-        elif dump >= PERCENT:
-            print(f"{coin} DUMP!!!") # log
-            send_signal.delay(coin, f"🔴DUMP - {round(dump, 2)}%")
-            r_open.delete(coin)
+       if pump >= PERCENT:
+    change = round(close_coin - base_open, 4)
+    message = choice(PUMP_MESSAGES).format(
+        coin=coin,
+        percent=round(pump, 2)
+    )
+    message += f"\n💵 Изменение: ${change}\n📊 График: https://www.tradingview.com/symbols/{coin}USDT/"
+    print(f"{coin} PUMP!!!")  # log
+    send_signal.delay(coin, message)
+    r_open.delete(coin)
+
+elif dump >= PERCENT:
+    change = round(base_open - close_coin, 4)
+    message = choice(DUMP_MESSAGES).format(
+        coin=coin,
+        percent=round(dump, 2)
+    )
+    message += f"\n💵 Изменение: ${change}\n📊 График: https://www.tradingview.com/symbols/{coin}USDT/"
+    print(f"{coin} DUMP!!!")  # log
+    send_signal.delay(coin, message)
+    r_open.delete(coin)
+
             
         if max(pump, dump) > max_percent:
             max_percent = max(pump, dump)
