@@ -5,9 +5,9 @@ from worker.tasks import send_signal, create_table
 from dotenv import load_dotenv
 load_dotenv()
 
-INTERVAL_IN_MINUTE = 1
-PERCENT = 3
-NUMBER_OF_COINS = 500
+INTERVAL_IN_MINUTE = 5
+PERCENT = 1
+NUMBER_OF_COINS = 50
 TIME_UPDATED_LIST_COINS = 60 # 1 hour
 
 r_coins = redis.Redis(
@@ -85,28 +85,14 @@ def scanner(minute):
         pump = (close_coin - open_coin) / open_coin * 100
         dump = (open_coin - close_coin) / open_coin * 100
 
-       if pump >= PERCENT:
-    change = round(close_coin - base_open, 4)
-    message = choice(PUMP_MESSAGES).format(
-        coin=coin,
-        percent=round(pump, 2)
-    )
-    message += f"\n💵 Изменение: ${change}\n📊 График: https://www.tradingview.com/symbols/{coin}USDT/"
-    print(f"{coin} PUMP!!!")  # log
-    send_signal.delay(coin, message)
-    r_open.delete(coin)
-
-elif dump >= PERCENT:
-    change = round(base_open - close_coin, 4)
-    message = choice(DUMP_MESSAGES).format(
-        coin=coin,
-        percent=round(dump, 2)
-    )
-    message += f"\n💵 Изменение: ${change}\n📊 График: https://www.tradingview.com/symbols/{coin}USDT/"
-    print(f"{coin} DUMP!!!")  # log
-    send_signal.delay(coin, message)
-    r_open.delete(coin)
-
+        if pump >= PERCENT:
+            print(f"{coin} PUMP!!!") # log
+            send_signal.delay(coin, f"🟢PUMP - {round(pump, 2)}%")
+            r_open.delete(coin)
+        elif dump >= PERCENT:
+            print(f"{coin} DUMP!!!") # log
+            send_signal.delay(coin, f"🔴DUMP - {round(dump, 2)}%")
+            r_open.delete(coin)
             
         if max(pump, dump) > max_percent:
             max_percent = max(pump, dump)
@@ -123,3 +109,5 @@ while True:
     minute += 1
     scanner(minute)
     time.sleep(60 - time.time() + start_time) # work every minute
+
+
